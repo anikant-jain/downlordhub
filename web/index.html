@@ -1,12 +1,365 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-<meta charset="UTF-8">
-<title>AJ Downloads</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AJ Downlords - Reels & Posts Downloader</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        /* --- Global Styles & Dark Theme --- */
+        :root {
+            --bg-color: #1a1a2e; /* Dark Blue */
+            --card-bg: #272744; /* Slightly lighter dark blue */
+            --text-color: #f0f0f0;
+            --accent-start: #f09433; /* Instagram Gradient Start */
+            --accent-end: #bc1888; /* Instagram Gradient End */
+            --transition-speed: 0.3s;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Poppins', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 800px;
+            width: 100%;
+            text-align: center;
+        }
+
+        /* --- Header & Branding --- */
+        header {
+            margin-bottom: 40px;
+            padding: 20px 0;
+        }
+
+        .logo {
+            font-size: 2.8rem;
+            font-weight: 700;
+            /* Apply a text gradient */
+            background: linear-gradient(45deg, var(--accent-start), #e6683c, #dc2743, #cc2367, var(--accent-end));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            display: inline-block;
+        }
+
+        .tagline {
+            font-size: 1rem;
+            opacity: 0.8;
+            margin-top: 5px;
+        }
+
+        /* --- Input Area --- */
+        .input-area {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 30px;
+        }
+
+        #link-input {
+            flex-grow: 1;
+            padding: 15px 20px;
+            border: 2px solid var(--card-bg);
+            border-radius: 12px;
+            font-size: 1rem;
+            color: var(--text-color);
+            background-color: var(--card-bg);
+            transition: border-color var(--transition-speed), box-shadow var(--transition-speed);
+        }
+
+        #link-input:focus {
+            outline: none;
+            border-color: var(--accent-start);
+            box-shadow: 0 0 15px rgba(240, 148, 51, 0.4);
+        }
+
+        #download-btn {
+            padding: 15px 30px;
+            border: none;
+            border-radius: 12px;
+            font-size: 1rem;
+            font-weight: 600;
+            color: white;
+            cursor: pointer;
+            background: linear-gradient(90deg, #dc2743, #cc2367, #bc1888);
+            transition: transform var(--transition-speed), opacity var(--transition-speed);
+            box-shadow: 0 5px 15px rgba(188, 24, 136, 0.3);
+        }
+
+        #download-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(188, 24, 136, 0.5);
+        }
+
+        #download-btn:disabled {
+            background: #555;
+            cursor: not-allowed;
+            opacity: 0.6;
+            box-shadow: none;
+        }
+
+        /* --- Status and Results --- */
+        #status-message {
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 8px;
+            font-weight: 600;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        .status-error {
+            background-color: #ff4d4d;
+            color: white;
+        }
+
+        .status-loading {
+            background-color: #4da6ff;
+            color: white;
+        }
+
+        .results-container {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        /* --- Download Card UI --- */
+        .download-card {
+            background-color: var(--card-bg);
+            border-radius: 12px;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+        }
+
+        .media-preview {
+            width: 100%;
+            height: 200px;
+            background-color: #1a1a2e;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #888;
+            font-size: 1rem;
+            overflow: hidden;
+            font-weight: 600;
+        }
+
+        .card-title {
+            font-size: 1.2rem;
+            font-weight: 600;
+            margin-bottom: 15px;
+        }
+
+        .download-options {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: center;
+        }
+
+        .download-options a {
+            text-decoration: none;
+            padding: 10px 15px;
+            border-radius: 8px;
+            font-weight: 600;
+            transition: background-color var(--transition-speed);
+        }
+
+        .btn-hq {
+            background-color: #2ecc71; /* Green */
+            color: white;
+        }
+
+        .btn-hq:hover {
+            background-color: #27ae60;
+        }
+
+        .btn-audio {
+            background-color: #3498db; /* Blue */
+            color: white;
+        }
+
+        .btn-audio:hover {
+            background-color: #2980b9;
+        }
+
+
+        /* --- Footer --- */
+        footer {
+            width: 100%;
+            text-align: center;
+            margin-top: auto;
+            padding: 15px 0;
+            font-size: 0.8rem;
+            color: #6c757d;
+        }
+
+        @media (max-width: 600px) {
+            .input-area {
+                flex-direction: column;
+            }
+
+            #download-btn {
+                width: 100%;
+            }
+
+            .logo {
+                font-size: 2rem;
+            }
+        }
+    </style>
 </head>
-<body style="background:#000;color:#fff;font-family:Arial;">
-<h1>AJ Downloads - Dark Theme</h1>
-<input type="text" placeholder="Paste URL..." style="width:300px;">
-<button>Download</button>
+<body>
+    <div class="container">
+        <header>
+            <h1 class="logo">AJ Downlords</h1>
+            <p class="tagline">Reels, Posts, & Stories. Download anything with a link.</p>
+        </header>
+        <div class="input-area">
+            <input 
+                type="url" 
+                id="link-input" 
+                placeholder="Paste Instagram Link Here (Reel/Post/Story URL)..." 
+                required
+                value="https://www.instagram.com/reel/Cm8X34q..." >
+            <button id="download-btn">Download Now</button>
+        </div>
+        <div id="status-message" class="hidden"></div>
+        <div id="results-container" class="results-container">
+        </div>
+    </div>
+    <footer>
+        <p>&copy; 2025 AJ Downlords | High-Speed Media Downloader</p>
+    </footer>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const linkInput = document.getElementById('link-input');
+            const downloadBtn = document.getElementById('download-btn');
+            const statusMessage = document.getElementById('status-message');
+            const resultsContainer = document.getElementById('results-container');
+            
+            // The API endpoint that the Java Spring Boot app is running on
+            const API_ENDPOINT = 'http://localhost:8080/api/download';
+
+            downloadBtn.addEventListener('click', handleDownload);
+
+            function displayStatus(message, type = 'default') {
+                statusMessage.textContent = message;
+                statusMessage.className = 'status-message';
+                statusMessage.classList.remove('hidden');
+
+                if (type === 'error') {
+                    statusMessage.classList.add('status-error');
+                } else if (type === 'loading') {
+                    statusMessage.classList.add('status-loading');
+                } else {
+                    statusMessage.classList.add('status-loading');
+                }
+            }
+
+            function hideStatus() {
+                statusMessage.classList.add('hidden');
+            }
+
+            function generateDownloadCard(media) {
+                const card = document.createElement('div');
+                card.className = 'download-card';
+
+                const isVideo = media.type === 'video' || media.type === 'reel';
+                const fileExt = isVideo ? 'mp4' : 'jpg';
+
+                const optionsHTML = `
+                    <h3 class="card-title">${media.type.toUpperCase()} Download Options</h3>
+                    <div class="download-options">
+                        <a href="${media.downloadUrl}" class="btn-hq" download="${media.filename}.${fileExt}">
+                            Download High Quality (.${fileExt})
+                        </a>
+                        ${media.audioUrl ? `<a href="${media.audioUrl}" class="btn-audio" download="${media.filename}.mp3">Download Music (.mp3)</a>` : ''}
+                    </div>
+                `;
+
+                card.innerHTML = `
+                    <div class="media-preview">
+                        <span>✅ ${media.type.toUpperCase()} Media Found.</span>
+                        <br>
+                        <span>Check Download Options below.</span>
+                    </div>
+                    ${optionsHTML}
+                `;
+                return card;
+            }
+
+            async function handleDownload() {
+                resultsContainer.innerHTML = '';
+                const url = linkInput.value.trim();
+
+                if (!url || !url.includes('instagram.com')) {
+                    displayStatus('Please enter a valid Instagram URL.', 'error');
+                    return;
+                }
+
+                // --- Start Loading State ---
+                downloadBtn.disabled = true;
+                downloadBtn.textContent = 'Processing...';
+                displayStatus('Sending request to Java API. Please wait (3+ seconds)...', 'loading');
+                
+                try {
+                    const response = await fetch(API_ENDPOINT, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        // Send the Instagram URL to the Java controller
+                        body: JSON.stringify({ instagramUrl: url }) 
+                    });
+
+                    if (response.ok) {
+                        const mediaList = await response.json();
+                        hideStatus();
+                        
+                        mediaList.forEach(media => {
+                            resultsContainer.appendChild(generateDownloadCard(media));
+                        });
+                        displayStatus(`Success! Found ${mediaList.length} media item(s). Click to download.`, 'default');
+                    } 
+                    else if (response.status === 404) {
+                        displayStatus('Media not found or is private.', 'error');
+                    }
+                    else {
+                        displayStatus(`API Error: The server returned status ${response.status}.`, 'error');
+                    }
+
+                } catch (error) {
+                    console.error('Network or API connection error:', error);
+                    displayStatus('Could not connect to Java Backend. Please ensure the Spring Boot application is running on http://localhost:8080.', 'error');
+                } finally {
+                    // --- End Loading State ---
+                    downloadBtn.disabled = false;
+                    downloadBtn.textContent = 'Download Now';
+                }
+            }
+        });
+    </script>
 </body>
 </html>
