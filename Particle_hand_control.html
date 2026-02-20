@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Hand Particles Pro - Saturn Update</title>
+    <style>
+        body { margin: 0; overflow: hidden; background: #000; font-family: 'Segoe UI', sans-serif; }
+        #ui { 
+            position: absolute; top: 20px; left: 20px; color: white; 
+            pointer-events: none; z-index: 10; text-shadow: 0 0 10px #0ff;
+        }
+        #gesture-label { font-size: 2em; color: #0ff; font-weight: bold; margin-bottom: 5px; }
+        #status-bar { font-size: 0.9em; color: #0f0; }
+        #video-container {
+            position: absolute; bottom: 20px; left: 20px; 
+            width: 600px; height: 500px; border: 2px solid #0ff;
+            border-radius: 10px; overflow: hidden; transform: scaleX(-1);
+        }
+        video { width: 100%; height: 100%; object-fit: cover; opacity: 0.5; }
+        
+    </style>
+</head>
+<body>
+
+    <div id="ui">
+        <div id="gesture-label">GESTURE: NONE</div>
+        <h2 id="shape-display">SHAPE: GALAXY</h2>
+        <div id="status-bar">Gerakkan tangan untuk memulai...</div>
+        <p style="opacity:0.6; font-size: 0.8em;">
+            ✊ <b>Genggam:</b> Black Hole Mode<br>
+            ✌️ <b>Piece:</b> Vortex Mode<br>
+            ✋ <b>Buka:</b> Normal Mode / Swipe Ganti Bentuk<br>
+            👌 <b>OK Sign:</b> Ubah Warna
+        </p>
+    </div>
+
+    <div id="video-container">
+        <video id="video" playsinline></video>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+
+    <script>
+        let scene, camera, renderer, particles, geometry;
+        const PARTICLE_COUNT = 8000;
+        let targetPositions = new Float32Array(PARTICLE_COUNT * 3);
+        
+        let handX = 0, handY = 0, lastHandX = 0;
+        let currentGesture = "NONE";
+        let currentShapeIndex = 0;
+        let swipeCooldown = 0;
+
+        // --- GENERATORS ---
+        const ShapeGenerators = {
+            galaxy: () => {
+                const arr = new Float32Array(PARTICLE_COUNT * 3);
+                for (let i = 0; i < PARTICLE_COUNT; i++) {
+                    const angle = 0.12 * i;
+                    const r = 0.4 * angle + (Math.random() * 5);
+                    arr[i*3] = r * Math.cos(angle);
+                    arr[i*3+1] = (Math.random() - 0.5) * 12;
+                    arr[i*3+2] = r * Math.sin(angle);
+                }
+                return arr;
+            },
+            saturn: () => {
+                const arr = new Float32Array(PARTICLE_COUNT * 3);
+                const planetParticles = PARTICLE_COUNT * 0.6; // 60% untuk bola
+                for (let i = 0; i < PARTICLE_COUNT; i++) {
+                    if (i < planetParticles) {
+                        // Planet (Sphere)
+                        const phi = Math.acos(-1 + (2 * i) / planetParticles);
+                        const theta = Math.sqrt(planetParticles * Math.PI) * phi;
+                        const r = 10;
+                        arr[i*3] = r * Math.cos(theta) * Math.sin(phi);
+                        arr[i*3+1] = r * Math.sin(theta) * Math.sin(phi);
+                        arr[i*3+2] = r * Math.cos(phi);
+                    } else {
+                        // Rings
+                        const angle = Math.random() * Math.PI * 2;
+                        const r = 15 + Math.random() * 8;
+                        arr[i*3] = r * Math.cos(angle);
+                        arr[i*3+1] = (Math.random() - 0.5) * 1.5; // Ketebalan cincin
+                        arr[i*3+2] = r * Math.sin(angle);
+                    }
+                }
+                return arr;
+            },
+            heart: () => {
+                const arr = new Float32Array(PARTICLE_COUNT * 3);
+                for (let i = 0; i < PARTICLE_COUNT; i++) {
+                    const t = Math.random() * Math.PI * 2;
+                    arr[i*3] = 16 * Math.pow(Math.sin(t), 3) * 0.8;
+                    arr[i*3+1] = (13 * Math.cos(t) - 5 * Math.cos(2*t) - 2 * Math.cos(3*t) - Math.cos(4*t)) * 0.8;
+                    arr[i*3+2] = (Math.random() - 0.5) * 5;
+                }
+                return arr;
+            },
+            loveText: () => {
+                const c = document.createElement('canvas');
+                const ctx = c.getContext('2d');
+                c.width = 600; c.height = 200;
+                ctx.fillStyle = 'white';
+                ctx.font = 'bold 70px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText("I LOVE YOU", 300, 110);
+                const data = ctx.getImageData(0, 0, 600, 200).data;
+                const pts = [];
+                for(let y=0; y<200; y+=3) {
+                    for(let x=0; x<600; x+=3) {
+                        if(data[(y*600+x)*4] > 128) pts.push({x: (x-300)*0.2, y: (100-y)*0.2});
+                    }
+                }
+                const arr = new Float32Array(PARTICLE_COUNT * 3);
+                for(let i=0; i<PARTICLE_COUNT; i++) {
+                    const p = pts[i % pts.length];
+                    arr[i*3] = p.x; arr[i*3+1] = p.y; arr[i*3+2] = (Math.random()-0.5)*2;
+                }
+                return arr;
+            }
+        };
+
+        const shapeKeys = Object.keys(ShapeGenerators);
+
+        function detectGesture(landmarks) {
+            const isIndexUp = landmarks[8].y < landmarks[6].y;
+            const isMiddleUp = landmarks[12].y < landmarks[10].y;
+            const isRingUp = landmarks[16].y < landmarks[14].y;
+            const isPinkyUp = landmarks[20].y < landmarks[18].y;
+            const pinchDist = Math.hypot(landmarks[4].x - landmarks[8].x, landmarks[4].y - landmarks[8].y);
+
+            if (pinchDist < 0.05 && isMiddleUp && isRingUp && isPinkyUp) return "OK_SIGN";
+            if (!isIndexUp && !isMiddleUp && !isRingUp && !isPinkyUp) return "FIST";
+            if (isIndexUp && isMiddleUp && !isRingUp && !isPinkyUp) return "PIECE";
+            if (isIndexUp && isMiddleUp && isRingUp && isPinkyUp) return "OPEN";
+            return "NONE";
+        }
+
+        function init() {
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
+            camera.position.z = 50;
+
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            document.body.appendChild(renderer.domElement);
+
+            geometry = new THREE.BufferGeometry();
+            const pos = ShapeGenerators.galaxy();
+            targetPositions.set(pos);
+            geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(pos), 3));
+            
+            const colors = new Float32Array(PARTICLE_COUNT * 3).fill(1);
+            geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+            particles = new THREE.Points(geometry, new THREE.PointsMaterial({
+                size: 0.5, vertexColors: true, blending: THREE.AdditiveBlending, transparent: true
+            }));
+            scene.add(particles);
+        }
+
+        const videoElement = document.getElementById('video');
+        const hands = new Hands({ locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}` });
+        hands.setOptions({ maxNumHands: 1, modelComplexity: 1, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5 });
+
+        hands.onResults((results) => {
+            if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+                const lm = results.multiHandLandmarks[0];
+                currentGesture = detectGesture(lm);
+                document.getElementById('gesture-label').innerText = `GESTURE: ${currentGesture}`;
+
+                handX = (0.5 - lm[9].x) * 110;
+                handY = (0.5 - lm[9].y) * 70;
+
+                const vel = Math.abs(handX - lastHandX);
+                if (vel > 18 && currentGesture === "OPEN" && Date.now() > swipeCooldown) {
+                    currentShapeIndex = (currentShapeIndex + 1) % shapeKeys.length;
+                    targetPositions.set(ShapeGenerators[shapeKeys[currentShapeIndex]]());
+                    document.getElementById('shape-display').innerText = `SHAPE: ${shapeKeys[currentShapeIndex].toUpperCase()}`;
+                    swipeCooldown = Date.now() + 1000;
+                }
+
+                if (currentGesture === "OK_SIGN") {
+                    const c = new THREE.Color().setHSL(Math.random(), 0.8, 0.5);
+                    const attr = geometry.attributes.color;
+                    for(let i=0; i<PARTICLE_COUNT; i++) attr.setXYZ(i, c.r, c.g, c.b);
+                    attr.needsUpdate = true;
+                }
+                lastHandX = handX;
+            }
+        });
+
+        new Camera(videoElement, { onFrame: async () => { await hands.send({image: videoElement}); }, width: 640, height: 480 }).start();
+
+        function animate(time) {
+            requestAnimationFrame(animate);
+            const pos = geometry.attributes.position;
+            const t = time * 0.002;
+
+            for (let i = 0; i < PARTICLE_COUNT; i++) {
+                const i3 = i * 3;
+                let tx = targetPositions[i3] + handX;
+                let ty = targetPositions[i3+1] + handY;
+                let tz = targetPositions[i3+2];
+
+                if (currentGesture === "FIST") {
+                    tx = handX; ty = handY; tz = 0;
+                } else if (currentGesture === "PIECE") {
+                    const angle = t + (i * 0.01);
+                    const dist = 10 + (i % 20);
+                    tx = handX + Math.cos(angle) * dist;
+                    ty = handY + Math.sin(angle) * dist;
+                }
+
+                pos.array[i3] += (tx - pos.array[i3]) * 0.1;
+                pos.array[i3+1] += (ty - pos.array[i3+1]) * 0.1;
+                pos.array[i3+2] += (tz - pos.array[i3+2]) * 0.1;
+            }
+            pos.needsUpdate = true;
+            renderer.render(scene, camera);
+        }
+
+        init();
+        animate(0);
+    </script>
+</body>
+</html>
